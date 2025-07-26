@@ -19,7 +19,8 @@ const double GRAMS_PER_PENNYWEIGHT = 1.55517;
 
 // --- File Paths ---
 const std::string PRICE_FILENAME = "gold_price.dat";
-const std::string LOG_FILENAME = "calculation_log.txt";
+const std::string LOG_FILENAME = "calculation_log.csv";
+const std::string METALS_FILENAME = "metals.dat";
 
 // --- Helper Functions ---
 void clearScreen() {
@@ -66,9 +67,8 @@ public:
         impurity = imp;
     }
 
-    void setTotalMass(double mass, const std::string& unit) {
+    void setTotalMass(double mass) {
         totalMassGrams = mass;
-        // The mass is already converted to grams before this function is called.
     }
 
     void calculateDensityFromWeight(double weightInAirGrams, double weightInWaterGrams) {
@@ -86,7 +86,7 @@ public:
     }
 
     bool isDensityValid() const {
-        if (density <= 0) return false;
+        if (density <= 0 || impurity.name.empty()) return false;
         double lowerBound = std::min(19.32, impurity.density);
         double upperBound = std::max(19.32, impurity.density);
         return (density >= lowerBound - 0.05 && density <= upperBound + 0.05);
@@ -125,12 +125,12 @@ private:
 
 public:
     App() : goldPricePerGram(0.0) {
-        // Initialize standard metals
-        metals.push_back(Metal("Copper", 8.96));
-        metals.push_back(Metal("Silver", 10.49));
-        metals.push_back(Metal("Platinum", 21.45));
-        metals.push_back(Metal("Palladium", 12.02));
+        loadMetals();
+        if (metals.empty()) {
+            initializeDefaultMetals();
+        }
         loadGoldPrice();
+        initializeLogFile();
     }
 
     void run() {
@@ -146,31 +146,32 @@ public:
                 clearInputBuffer();
                 choice = 0;
             }
-            if (choice != 8) {
+            if (choice != 9) {
                 std::cout << "\nPress Enter to return to the main menu...";
                 clearInputBuffer();
                 std::cin.get();
             }
-        } while (choice != 8);
+        } while (choice != 9);
     }
 
 private:
     void displayMenu() {
         clearScreen();
-        std::cout << "================================\n";
-        std::cout << "||    Gold & Alloy Toolkit    ||\n";
-        std::cout << "================================\n";
+        std::cout << "=======================================\n";
+        std::cout << "||        Gold & Alloy Toolkit       ||\n";
+        std::cout << "=======================================\n";
         std::cout << "  Current Gold Price: $" << std::fixed << std::setprecision(2)
             << (goldPricePerGram > 0 ? goldPricePerGram : 0.0) << "/gram\n\n";
         std::cout << "1. Calculate Purity (from Weight)\n";
         std::cout << "2. Calculate Purity (from Density)\n";
-        std::cout << "3. Alloying Calculator (Target Karat)\n";
-        std::cout << "4. View Calculation Log\n";
-        std::cout << "5. Update Gold Price\n";
-        std::cout << "6. Show Karat Reference Table\n";
-        std::cout << "7. Help / Usage Guide\n";
-        std::cout << "8. Exit\n";
-        std::cout << "================================\n";
+        std::cout << "3. Alloying Calculator (Create Alloy)\n";
+        std::cout << "4. Alloying Calculator (Raise Karat)\n";
+        std::cout << "5. View Calculation Log (CSV)\n";
+        std::cout << "6. Manage Metals\n";
+        std::cout << "7. Update Gold Price\n";
+        std::cout << "8. Help / Usage Guide\n";
+        std::cout << "9. Exit\n";
+        std::cout << "=======================================\n";
         std::cout << "Enter your choice: ";
     }
 
@@ -179,11 +180,12 @@ private:
         case 1: performPurityFromWeight(); break;
         case 2: performPurityFromDensity(); break;
         case 3: performAlloyingCalculation(); break;
-        case 4: viewCalculationLog(); break;
-        case 5: manageGoldPrice(); break;
-        case 6: displayKaratInfo(); break;
-        case 7: displayHelp(); break;
-        case 8: std::cout << "Exiting program. Goodbye!\n"; break;
+        case 4: performReverseAlloying(); break;
+        case 5: viewCalculationLog(); break;
+        case 6: manageMetals(); break;
+        case 7: manageGoldPrice(); break;
+        case 8: displayHelp(); break;
+        case 9: std::cout << "Exiting program. Goodbye!\n"; break;
         default: std::cout << "Invalid choice. Please try again.\n";
         }
     }
@@ -212,6 +214,10 @@ private:
     }
 
     Metal chooseImpurity() {
+        if (metals.empty()) {
+            std::cout << "No metals defined. Please add a metal in the 'Manage Metals' menu.\n";
+            return Metal();
+        }
         std::cout << "\nSelect the other metal in the alloy:\n";
         for (size_t i = 0; i < metals.size(); ++i) {
             std::cout << i + 1 << ". " << metals[i].name << "\n";
@@ -239,7 +245,7 @@ private:
 
         item.calculateDensityFromWeight(weightInAir, weightInWater);
 
-        displayPurityResults(item);
+        displayPurityResults(item, "PurityFromWeight");
     }
 
     void performPurityFromDensity() {
@@ -251,36 +257,41 @@ private:
         double density = getValidatedNumericInput("Enter object's density (g/cm^3): ");
         item.setDensity(density);
         double mass = getMassInGrams("Enter total mass:");
-        item.setTotalMass(mass, "grams");
+        item.setTotalMass(mass);
 
-        displayPurityResults(item);
+        displayPurityResults(item, "PurityFromDensity");
     }
 
-    void displayPurityResults(const GoldItem& item) {
-        std::stringstream logStream;
-        logStream << std::fixed << std::setprecision(2);
-        logStream << "Calculated Density: " << item.getDensity() << " g/cm^3\n";
+    void displayPurityResults(const GoldItem& item, const std::string& calcType) {
+        std::stringstream textOutput;
+        textOutput << std::fixed << std::setprecision(2);
+        textOutput << "Calculated Density: " << item.getDensity() << " g/cm^3\n";
 
         if (item.isDensityValid()) {
             double pureGoldMass = item.getPureGoldMass();
-            logStream << "--- Purity Analysis ---\n";
-            logStream << "Purity by mass: " << item.getPurityPercentage() << "%\n";
-            logStream << "Karat value: " << item.getKarats() << "K\n";
-            logStream << "Total pure gold: " << pureGoldMass << " grams\n";
-            if (pureGoldMass > 0) {
-                calculateMarketValue(pureGoldMass, logStream);
+            double purity = item.getPurityPercentage();
+            double karats = item.getKarats();
+            double marketValue = (goldPricePerGram > 0) ? pureGoldMass * goldPricePerGram : 0.0;
+
+            textOutput << "--- Purity Analysis ---\n";
+            textOutput << "Purity by mass: " << purity << "%\n";
+            textOutput << "Karat value: " << karats << "K\n";
+            textOutput << "Total pure gold: " << pureGoldMass << " grams\n";
+            if (marketValue > 0) {
+                textOutput << "Market Value (at $" << goldPricePerGram << "/gram): $" << marketValue << "\n";
             }
+            logResult(calcType, purity, karats, pureGoldMass, marketValue);
         }
         else {
-            logStream << "Result: Inconclusive. Density is outside the possible range for the selected alloy.\n";
+            textOutput << "Result: Inconclusive. Density is outside the possible range for the selected alloy.\n";
+            logResult(calcType, 0, 0, 0, 0);
         }
-        std::cout << "\n" << logStream.str();
-        logResult(logStream.str());
+        std::cout << "\n" << textOutput.str();
     }
 
     void performAlloyingCalculation() {
         clearScreen();
-        std::cout << "--- Alloying Calculator ---\n";
+        std::cout << "--- Alloying Calculator (Create Alloy) ---\n";
 
         double goldMass = getMassInGrams("Enter mass of PURE (24K) gold:");
         double targetKarat;
@@ -295,26 +306,83 @@ private:
         double impurityMass = goldMass * ((1.0 / targetPurity) - 1.0);
         double totalAlloyMass = goldMass + impurityMass;
 
-        std::stringstream logStream;
-        logStream << std::fixed << std::setprecision(2);
-        logStream << "--- Alloying Results ---\n";
-        logStream << "To create " << targetKarat << "K gold from " << goldMass << "g of pure gold,\n";
-        logStream << "you need to add " << impurityMass << "g of " << impurity.name << ".\n";
-        logStream << "Resulting total mass: " << totalAlloyMass << "g of " << targetKarat << "K alloy.\n";
+        std::stringstream textOutput;
+        textOutput << std::fixed << std::setprecision(2);
+        textOutput << "--- Alloying Results ---\n";
+        textOutput << "To create " << targetKarat << "K gold from " << goldMass << "g of pure gold,\n";
+        textOutput << "you need to add " << impurityMass << "g of " << impurity.name << ".\n";
+        textOutput << "Resulting total mass: " << totalAlloyMass << "g of " << targetKarat << "K alloy.\n";
 
-        std::cout << "\n" << logStream.str();
-        logResult(logStream.str());
+        std::cout << "\n" << textOutput.str();
+        logResult("CreateAlloy", targetKarat, 0, goldMass, 0);
+    }
+
+    void performReverseAlloying() {
+        clearScreen();
+        std::cout << "--- Alloying Calculator (Raise Karat) ---\n";
+
+        double initialMass = getMassInGrams("Enter mass of existing alloy:");
+        double initialKarat = getValidatedNumericInput("Enter initial Karat of alloy: ");
+        double targetKarat = getValidatedNumericInput("Enter target Karat to achieve: ");
+
+        if (targetKarat <= initialKarat || targetKarat > 24 || initialKarat >= 24) {
+            std::cout << "Invalid Karat values. Target must be higher than initial, and both must be below 24.\n";
+            return;
+        }
+
+        double initialPurity = initialKarat / 24.0;
+        double targetPurity = targetKarat / 24.0;
+
+        // Formula: addedGold = initialMass * (targetPurity - initialPurity) / (1 - targetPurity)
+        double addedGold = initialMass * (targetPurity - initialPurity) / (1.0 - targetPurity);
+        double finalMass = initialMass + addedGold;
+
+        std::stringstream textOutput;
+        textOutput << std::fixed << std::setprecision(2);
+        textOutput << "--- Alloying Results ---\n";
+        textOutput << "To raise " << initialMass << "g of " << initialKarat << "K gold to " << targetKarat << "K,\n";
+        textOutput << "you need to add " << addedGold << "g of PURE (24K) gold.\n";
+        textOutput << "The final alloy will have a total mass of " << finalMass << "g.\n";
+
+        std::cout << "\n" << textOutput.str();
+        logResult("RaiseKarat", targetKarat, initialKarat, addedGold, 0);
     }
 
     void viewCalculationLog() {
         clearScreen();
-        std::cout << "--- Calculation Log ---\n\n";
+        std::cout << "--- Calculation Log (CSV Format) ---\n\n";
         std::ifstream logFile(LOG_FILENAME);
         if (logFile.is_open()) {
             std::cout << logFile.rdbuf();
         }
         else {
             std::cout << "Log file is empty or does not exist yet.\n";
+        }
+    }
+
+    void manageMetals() {
+        clearScreen();
+        std::cout << "--- Manage Metals ---\n";
+        std::cout << "1. List Metals\n2. Add New Metal\n3. Back to Main Menu\nChoice: ";
+        int choice;
+        std::cin >> choice;
+        if (!std::cin.good()) { clearInputBuffer(); return; }
+
+        if (choice == 1) {
+            std::cout << "\n--- Current Metals ---\n";
+            for (const auto& metal : metals) {
+                std::cout << metal.name << " - " << metal.density << " g/cm^3\n";
+            }
+        }
+        else if (choice == 2) {
+            std::string name;
+            double density;
+            std::cout << "Enter new metal name: ";
+            std::cin >> name;
+            density = getValidatedNumericInput("Enter density (g/cm^3): ");
+            metals.push_back(Metal(name, density));
+            saveMetals();
+            std::cout << name << " added successfully.\n";
         }
     }
 
@@ -340,26 +408,8 @@ private:
         std::cout << "Price updated to $" << goldPricePerGram << "/gram.\n";
     }
 
-    void displayKaratInfo() {
-        clearScreen();
-        std::cout << "\n--- Gold Karat Reference Table ---\n";
-        // ... (content is the same)
-    }
-
-    void displayHelp() {
-        clearScreen();
-        std::cout << "--- Help & Usage Guide ---\n\n";
-        // ... (content is the same, but can be updated to mention units)
-    }
-
-    void calculateMarketValue(double pureGoldMass, std::stringstream& logStream) {
-        if (goldPricePerGram <= 0) {
-            std::cout << "\nMarket price is not set. Please update it from the main menu.\n";
-            return;
-        }
-        double totalValue = pureGoldMass * goldPricePerGram;
-        logStream << "Market Value (at $" << goldPricePerGram << "/gram): $" << totalValue << "\n";
-    }
+    void displayKaratInfo() { /* ... unchanged ... */ }
+    void displayHelp() { /* ... unchanged ... */ }
 
     double getValidatedNumericInput(const std::string& prompt) {
         double value;
@@ -374,35 +424,65 @@ private:
         }
     }
 
-    void logResult(const std::string& logMessage) {
+    void initializeLogFile() {
+        std::ifstream logFile(LOG_FILENAME);
+        if (!logFile.good()) {
+            std::ofstream newLogFile(LOG_FILENAME);
+            newLogFile << "Timestamp,CalculationType,Purity(%),Karat,PureGold(g),MarketValue($)\n";
+        }
+    }
+
+    void logResult(const std::string& calcType, double purity, double karat, double pureGold, double value) {
         std::ofstream logFile(LOG_FILENAME, std::ios_base::app);
         if (!logFile.is_open()) return;
 
         auto now = std::chrono::system_clock::now();
         std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-        char timeStr[26];
-        ctime_s(timeStr, sizeof(timeStr), &now_time);
-        timeStr[24] = '\0';
+        std::tm gmtm;
+        gmtime_s(&gmtm, &now_time);
+        std::stringstream ss;
+        ss << std::put_time(&gmtm, "%Y-%m-%d %H:%M:%S");
 
-        logFile << "--- Log Entry: " << timeStr << " ---\n";
-        logFile << logMessage << "\n\n";
+        logFile << ss.str() << "," << calcType << "," << purity << "," << karat << "," << pureGold << "," << value << "\n";
     }
 
     void saveGoldPrice() {
         std::ofstream priceFile(PRICE_FILENAME);
-        if (priceFile.is_open()) {
-            priceFile << goldPricePerGram;
-        }
+        if (priceFile.is_open()) priceFile << goldPricePerGram;
     }
 
     void loadGoldPrice() {
         std::ifstream priceFile(PRICE_FILENAME);
-        if (priceFile.is_open()) {
-            priceFile >> goldPricePerGram;
+        if (priceFile.is_open()) priceFile >> goldPricePerGram;
+        else goldPricePerGram = 0.0;
+    }
+
+    void saveMetals() {
+        std::ofstream metalFile(METALS_FILENAME);
+        if (metalFile.is_open()) {
+            for (const auto& metal : metals) {
+                metalFile << metal.name << " " << metal.density << "\n";
+            }
         }
-        else {
-            goldPricePerGram = 0.0;
+    }
+
+    void loadMetals() {
+        std::ifstream metalFile(METALS_FILENAME);
+        if (metalFile.is_open()) {
+            std::string name;
+            double density;
+            while (metalFile >> name >> density) {
+                metals.push_back(Metal(name, density));
+            }
         }
+    }
+
+    void initializeDefaultMetals() {
+        metals.push_back(Metal("Copper", 8.96));
+        metals.push_back(Metal("Silver", 10.49));
+        metals.push_back(Metal("Platinum", 21.45));
+        metals.push_back(Metal("Palladium", 12.02));
+        saveMetals();
     }
 };
 
