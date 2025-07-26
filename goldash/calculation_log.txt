@@ -10,3 +10,10 @@ Total pure gold: 6.71 grams
 Market Value (at 40000.00 per gram): 268540.54
 
 
+--- Log Entry: Sun Jul 27 01:30:12 2025 ---
+--- Alloying Results ---
+To create 18.00K gold from 1.00g of pure gold,
+you need to add 0.33g of Copper.
+Resulting total mass: 1.33g of 18.00K alloy.
+
+
