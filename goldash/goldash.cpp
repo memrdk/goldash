@@ -16,6 +16,7 @@
 const double GRAMS_PER_TROY_OUNCE = 31.1034768;
 const double GRAMS_PER_OUNCE = 28.3495;
 const double GRAMS_PER_PENNYWEIGHT = 1.55517;
+const double GRAMS_PER_TOLA = 11.6638;
 
 // --- File Paths ---
 const std::string PRICE_FILENAME = "gold_price.dat";
@@ -160,7 +161,7 @@ private:
         std::cout << "=======================================\n";
         std::cout << "||        Gold & Alloy Toolkit       ||\n";
         std::cout << "=======================================\n";
-        std::cout << "  Current Gold Price: $" << std::fixed << std::setprecision(2)
+        std::cout << "  Current Gold Price: " << std::fixed << std::setprecision(2)
             << (goldPricePerGram > 0 ? goldPricePerGram : 0.0) << "/gram\n\n";
         std::cout << "1. Calculate Purity (from Weight)\n";
         std::cout << "2. Calculate Purity (from Density)\n";
@@ -192,7 +193,7 @@ private:
 
     double getMassInGrams(const std::string& prompt) {
         std::cout << prompt << "\n";
-        std::cout << "Select unit:\n1. Grams\n2. Troy Ounces\n3. Ounces (AVDP)\n4. Pennyweight (DWT)\nChoice: ";
+        std::cout << "Select unit:\n1. Grams\n2. Troy Ounces\n3. Ounces (AVDP)\n4. Pennyweight (DWT)\n5. Tola\nChoice: ";
         int choice;
         std::cin >> choice;
         double value;
@@ -209,6 +210,7 @@ private:
         case 2: return value * GRAMS_PER_TROY_OUNCE;
         case 3: return value * GRAMS_PER_OUNCE;
         case 4: return value * GRAMS_PER_PENNYWEIGHT;
+        case 5: return value * GRAMS_PER_TOLA;
         default: return value;
         }
     }
@@ -278,7 +280,7 @@ private:
             textOutput << "Karat value: " << karats << "K\n";
             textOutput << "Total pure gold: " << pureGoldMass << " grams\n";
             if (marketValue > 0) {
-                textOutput << "Market Value (at $" << goldPricePerGram << "/gram): $" << marketValue << "\n";
+                textOutput << "Market Value (at " << goldPricePerGram << "/gram): " << marketValue << "\n";
             }
             logResult(calcType, purity, karats, pureGoldMass, marketValue);
         }
@@ -389,9 +391,10 @@ private:
     void manageGoldPrice() {
         clearScreen();
         std::cout << "--- Manage Gold Price ---\n";
-        std::cout << "The currently saved price is: $" << goldPricePerGram << "/gram.\n";
+        std::cout << "The currently saved price is: " << goldPricePerGram << "/gram.\n";
         std::cout << "1. Update price per Gram\n";
         std::cout << "2. Update price per Troy Ounce\n";
+        std::cout << "3. Update price per Tola\n";
         std::cout << "Enter choice: ";
         int choice;
         std::cin >> choice;
@@ -401,15 +404,62 @@ private:
         if (choice == 2) {
             goldPricePerGram = newPrice / GRAMS_PER_TROY_OUNCE;
         }
+        else if (choice == 3) {
+            goldPricePerGram = newPrice / GRAMS_PER_TOLA;
+        }
         else {
             goldPricePerGram = newPrice;
         }
         saveGoldPrice();
-        std::cout << "Price updated to $" << goldPricePerGram << "/gram.\n";
+        std::cout << "Price updated to " << goldPricePerGram << "/gram.\n";
     }
 
-    void displayKaratInfo() { /* ... unchanged ... */ }
-    void displayHelp() { /* ... unchanged ... */ }
+    void displayKaratInfo() {
+        clearScreen();
+        std::cout << "\n--- Gold Karat Reference Table ---\n";
+        std::cout << std::left << std::setw(10) << "Karat" << std::left << std::setw(15) << "Purity (%)" << "Parts of Gold\n";
+        std::cout << "-------------------------------------\n";
+        std::cout << std::left << std::setw(10) << "24K" << std::left << std::setw(15) << "100%" << "24/24\n";
+        std::cout << std::left << std::setw(10) << "22K" << std::left << std::setw(15) << "91.7%" << "22/24\n";
+        std::cout << std::left << std::setw(10) << "18K" << std::left << std::setw(15) << "75.0%" << "18/24\n";
+        std::cout << std::left << std::setw(10) << "14K" << std::left << std::setw(15) << "58.3%" << "14/24\n";
+        std::cout << std::left << std::setw(10) << "10K" << std::left << std::setw(15) << "41.7%" << "10/24\n";
+        std::cout << "-------------------------------------\n\n";
+    }
+
+    void displayHelp() {
+        clearScreen();
+        std::cout << "--- Help & Usage Guide ---\n\n";
+        std::cout << "This guide explains the functionality of each menu option.\n\n";
+
+        std::cout << "1. Calculate Purity (from Weight):\n";
+        std::cout << "   - Uses Archimedes' principle to find purity from weight in air and water.\n";
+        std::cout << "   - You can input weight in Grams, Ounces, Troy Ounces, Pennyweight, or Tolas.\n\n";
+
+        std::cout << "2. Calculate Purity (from Density):\n";
+        std::cout << "   - Calculates purity if you already know the item's density and mass.\n\n";
+
+        std::cout << "3. Alloying Calculator (Create Alloy):\n";
+        std::cout << "   - Calculates how much of an impurity metal to add to pure gold to create a target Karat.\n\n";
+
+        std::cout << "4. Alloying Calculator (Raise Karat):\n";
+        std::cout << "   - Calculates how much pure gold to add to an existing alloy to raise it to a higher Karat.\n\n";
+
+        std::cout << "5. View Calculation Log (CSV):\n";
+        std::cout << "   - Displays the log of all past calculations, which is saved in 'calculation_log.csv'.\n\n";
+
+        std::cout << "6. Manage Metals:\n";
+        std::cout << "   - View or add new impurity metals to the list. Data is saved in 'metals.dat'.\n\n";
+
+        std::cout << "7. Update Gold Price:\n";
+        std::cout << "   - Set the market price of gold using price per Gram, Troy Ounce, or Tola.\n\n";
+
+        std::cout << "8. Help / Usage Guide:\n";
+        std::cout << "   - Displays this help screen.\n\n";
+
+        std::cout << "9. Exit:\n";
+        std::cout << "   - Closes the program.\n";
+    }
 
     double getValidatedNumericInput(const std::string& prompt) {
         double value;
@@ -428,7 +478,7 @@ private:
         std::ifstream logFile(LOG_FILENAME);
         if (!logFile.good()) {
             std::ofstream newLogFile(LOG_FILENAME);
-            newLogFile << "Timestamp,CalculationType,Purity(%),Karat,PureGold(g),MarketValue($)\n";
+            newLogFile << "Timestamp,CalculationType,Purity(%),Karat,PureGold(g),MarketValue\n";
         }
     }
 
