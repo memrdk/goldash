@@ -1,0 +1,12 @@
+--- Log Entry: Sun Jul 27 01:23:21 2025 ---
+Calculation Type: Purity from Density
+Input - Object Density: 14 g/cm^3
+Input - Total Mass: 10g
+Assumed Impurity: Copper
+--- Purity Analysis ---
+Purity by mass: 67.14%
+Karat value: 16.11K
+Total pure gold: 6.71 grams
+Market Value (at 40000.00 per gram): 268540.54
+
+
