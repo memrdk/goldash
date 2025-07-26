@@ -21,7 +21,10 @@ void clearInputBuffer();
 double getValidatedNumericInput(const std::string& prompt);
 void displayKaratInfo();
 double chooseImpurity(std::string& impurityName);
+void calculateMarketValue(double pureGoldMass);
 void performPurityCalculation();
+void performDensityToPurityConversion();
+void performAlloyingCalculation();
 
 
 /**
@@ -77,7 +80,7 @@ void displayKaratInfo() {
  */
 double chooseImpurity(std::string& impurityName) {
     int choice;
-    std::cout << "\nSelect the suspected impurity metal in the alloy:\n";
+    std::cout << "\nSelect the other metal in the alloy:\n";
     std::cout << "1. Copper (Most common)\n";
     std::cout << "2. Silver\n";
     std::cout << "3. Platinum\n";
@@ -103,15 +106,28 @@ double chooseImpurity(std::string& impurityName) {
     }
 }
 
+/**
+ * @brief Calculates the market value of a given mass of pure gold.
+ * @param pureGoldMass The mass of pure gold in grams.
+ */
+void calculateMarketValue(double pureGoldMass) {
+    if (pureGoldMass <= 0) {
+        return;
+    }
+    std::cout << "\n--- Market Value Calculation ---\n";
+    double pricePerGram = getValidatedNumericInput("Enter the current market price of gold per gram: ");
+    double totalValue = pureGoldMass * pricePerGram;
+    std::cout << "The estimated market value of the pure gold is: " << std::fixed << std::setprecision(2) << totalValue << "\n\n";
+}
 
 /**
- * @brief Runs the main logic for calculating gold purity.
+ * @brief Runs the main logic for calculating gold purity from weight.
  */
 void performPurityCalculation() {
     std::string impurityName;
     double densityOfImpurity = chooseImpurity(impurityName);
 
-    std::cout << "\n--- New Calculation (assuming " << impurityName << " alloy) ---\n";
+    std::cout << "\n--- Purity Calculation (from Weight) ---\n";
 
     double weightInAir = getValidatedNumericInput("Enter the weight of the gold bar in air (grams): ");
     double weightInWater;
@@ -138,28 +154,19 @@ void performPurityCalculation() {
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "Calculated Density of the bar: " << objectDensity << " g/cm^3\n";
 
-    // --- IMPROVED LOGIC: Check if the density is physically possible for the alloy ---
     double lowerBound = std::min(DENSITY_PURE_GOLD, densityOfImpurity);
     double upperBound = std::max(DENSITY_PURE_GOLD, densityOfImpurity);
 
-    // Check if the object's density falls within the range of its supposed components.
-    // A small tolerance (0.05) is added to account for minor measurement variations.
     if (objectDensity < lowerBound - 0.05 || objectDensity > upperBound + 0.05) {
         std::cout << "Error: The calculated density is not physically possible for a Gold-" << impurityName << " alloy.\n";
-        std::cout << "The density should be between " << lowerBound << " g/cm^3 (" << (lowerBound == DENSITY_PURE_GOLD ? "Gold" : impurityName)
-            << ") and " << upperBound << " g/cm^3 (" << (upperBound == DENSITY_PURE_GOLD ? "Gold" : impurityName) << ").\n";
     }
     else if (std::abs(objectDensity - DENSITY_PURE_GOLD) < 0.05) {
-        // If density is very close to pure gold, consider it 100% pure.
         massOfPureGold = weightInAir;
         purityPercentage = 100.0;
         karats = 24.0;
     }
     else {
-        // The formula for volume fraction works correctly regardless of which metal is denser.
-        // V_f_gold = (rho_object - rho_impurity) / (rho_gold - rho_impurity)
         double volumeFractionGold = (objectDensity - densityOfImpurity) / (DENSITY_PURE_GOLD - densityOfImpurity);
-
         massOfPureGold = (volumeFractionGold * objectVolume) * DENSITY_PURE_GOLD;
         purityPercentage = (massOfPureGold / weightInAir) * 100.0;
         karats = purityPercentage * (24.0 / 100.0);
@@ -168,20 +175,99 @@ void performPurityCalculation() {
     std::cout << "\n--- Purity Analysis (assuming " << impurityName << " alloy) ---\n";
     std::cout << "Purity by mass: " << purityPercentage << "%\n";
     std::cout << "Karat value: " << karats << "K\n";
-    std::cout << "Total pure gold content: " << massOfPureGold << " grams\n\n";
+    std::cout << "Total pure gold content: " << massOfPureGold << " grams\n";
+
+    calculateMarketValue(massOfPureGold);
 }
+
+/**
+ * @brief Calculates purity and mass from a known density and total weight.
+ */
+void performDensityToPurityConversion() {
+    std::string impurityName;
+    std::cout << "\n--- Purity Calculation (from Density) ---\n";
+
+    double objectDensity = getValidatedNumericInput("Enter the object's density (g/cm^3): ");
+    double totalMass = getValidatedNumericInput("Enter the object's total mass (grams): ");
+    double densityOfImpurity = chooseImpurity(impurityName);
+
+    double massOfPureGold = 0.0;
+    double purityPercentage = 0.0;
+    double karats = 0.0;
+
+    double lowerBound = std::min(DENSITY_PURE_GOLD, densityOfImpurity);
+    double upperBound = std::max(DENSITY_PURE_GOLD, densityOfImpurity);
+
+    if (objectDensity < lowerBound - 0.05 || objectDensity > upperBound + 0.05) {
+        std::cout << "Error: The provided density is not physically possible for a Gold-" << impurityName << " alloy.\n";
+    }
+    else if (std::abs(objectDensity - DENSITY_PURE_GOLD) < 0.05) {
+        purityPercentage = 100.0;
+        massOfPureGold = totalMass;
+        karats = 24.0;
+    }
+    else {
+        // Formula to find mass fraction (p) from densities:
+        // p = (1/D_obj - 1/D_i) / (1/D_g - 1/D_i)
+        double p_numerator = (1.0 / objectDensity) - (1.0 / densityOfImpurity);
+        double p_denominator = (1.0 / DENSITY_PURE_GOLD) - (1.0 / densityOfImpurity);
+        double massFraction = p_numerator / p_denominator;
+
+        purityPercentage = massFraction * 100.0;
+        karats = purityPercentage * (24.0 / 100.0);
+        massOfPureGold = totalMass * massFraction;
+    }
+
+    std::cout << "\n--- Purity Analysis (assuming " << impurityName << " alloy) ---\n";
+    std::cout << "Purity by mass: " << purityPercentage << "%\n";
+    std::cout << "Karat value: " << karats << "K\n";
+    std::cout << "Total pure gold content: " << massOfPureGold << " grams\n";
+
+    calculateMarketValue(massOfPureGold);
+}
+
+/**
+ * @brief Calculates the amount of impurity needed to create a target Karat gold alloy.
+ */
+void performAlloyingCalculation() {
+    std::string impurityName;
+    std::cout << "\n--- Alloying Calculator ---\n";
+
+    double goldMass = getValidatedNumericInput("Enter the mass of PURE (24K) gold you have (grams): ");
+    double targetKarat;
+    while (true) {
+        targetKarat = getValidatedNumericInput("Enter the target Karat value (e.g., 18, 14): ");
+        if (targetKarat < 24) break;
+        std::cout << "Target Karat must be less than 24.\n";
+    }
+
+    double densityOfImpurity = chooseImpurity(impurityName);
+
+    double targetPurity = targetKarat / 24.0;
+    // Formula: massOfImpurity = massOfGold * (1/targetPurity - 1)
+    double impurityMass = goldMass * ((1.0 / targetPurity) - 1.0);
+    double totalAlloyMass = goldMass + impurityMass;
+
+    std::cout << "\n--- Alloying Results ---\n";
+    std::cout << "To create " << targetKarat << "K gold from " << goldMass << "g of pure gold,\n";
+    std::cout << "you need to add " << impurityMass << "g of " << impurityName << ".\n";
+    std::cout << "This will result in a total of " << totalAlloyMass << "g of " << targetKarat << "K alloy.\n\n";
+}
+
 
 int main() {
     int choice;
 
-    std::cout << "--- Gold Purity Calculator ---" << std::endl;
-    std::cout << "This program estimates gold purity based on its weight in air and water." << std::endl;
+    std::cout << "--- Gold & Alloy Toolkit ---\n";
+    std::cout << "A versatile tool for purity, value, and alloy calculations." << std::endl;
 
     do {
         std::cout << "--- Main Menu ---\n";
-        std::cout << "1. Calculate Gold Purity\n";
-        std::cout << "2. Show Karat Reference Table\n";
-        std::cout << "3. Exit\n";
+        std::cout << "1. Calculate Purity (from Weight)\n";
+        std::cout << "2. Calculate Purity (from Density)\n";
+        std::cout << "3. Alloying Calculator (Target Karat)\n";
+        std::cout << "4. Show Karat Reference Table\n";
+        std::cout << "5. Exit\n";
         std::cout << "Enter your choice: ";
 
         std::cin >> choice;
@@ -192,9 +278,15 @@ int main() {
                 performPurityCalculation();
                 break;
             case 2:
-                displayKaratInfo();
+                performDensityToPurityConversion();
                 break;
             case 3:
+                performAlloyingCalculation();
+                break;
+            case 4:
+                displayKaratInfo();
+                break;
+            case 5:
                 std::cout << "Exiting program. Goodbye!\n";
                 break;
             default:
@@ -207,7 +299,7 @@ int main() {
             choice = 0; // Reset choice to prevent infinite loop if non-numeric input is entered
         }
 
-    } while (choice != 3);
+    } while (choice != 5);
 
     return 0;
 }
