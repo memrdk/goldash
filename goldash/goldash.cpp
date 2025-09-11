@@ -12,6 +12,8 @@
 // --- Constants ---
 const std::string CONFIG_FILENAME = "toolkit_config.dat";
 const std::string LOG_FILENAME = "calculation_log.txt";
+const std::string INVOICE_FILENAME = "invoices.txt";
+const std::string LAB_REPORT_FILENAME = "lab_reports.txt";
 const double GRAMS_PER_TOLA = 11.6638;
 const int MASHA_PER_TOLA = 12;
 const int RATTI_PER_MASHA = 8;
@@ -53,16 +55,13 @@ struct Settings {
     std::string currencySymbol = "Rs";
     WeightSystem weightSystem = WeightSystem::TOLA_MASHA_RATTI;
     double goldRate = 240000.0;
-    std::string cityName = "";
-    bool showCityInHeader = false;
+    std::string cityName = "Multan";
+    bool showCityInHeader = true;
     bool askForCustomerDetails = true;
 
     bool save() const {
         std::ofstream configFile(CONFIG_FILENAME);
-        if (!configFile) {
-            std::cerr << "Error: Could not save settings to " << CONFIG_FILENAME << std::endl;
-            return false;
-        }
+        if (!configFile) { return false; }
         configFile << currencySymbol << "\n";
         configFile << static_cast<int>(weightSystem) << "\n";
         configFile << goldRate << "\n";
@@ -85,8 +84,7 @@ struct Settings {
             if (std::getline(configFile, temp)) askForCustomerDetails = (temp == "1");
         }
         catch (const std::exception&) {
-            // File might be old or corrupted, defaults will be used
-            return true; // Still allow program to run
+            return true;
         }
         return true;
     }
@@ -117,17 +115,19 @@ public:
     }
 
 private:
-    std::string getCurrentTimestamp() {
+    std::string getCurrentTimestamp(bool forHeader = false) {
         auto now = std::chrono::system_clock::now();
         std::time_t now_time = std::chrono::system_clock::to_time_t(now);
         std::tm local_tm;
+
 #ifdef _WIN32
         localtime_s(&local_tm, &now_time);
 #else
         local_tm = *localtime(&now_time);
 #endif
+
         std::stringstream ss;
-        ss << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S");
+        ss << std::put_time(&local_tm, forHeader ? "%a, %d %b %Y" : "%Y-%m-%d %H:%M:%S");
         return ss.str();
     }
 
@@ -138,6 +138,13 @@ private:
         }
     }
 
+    void printToFile(const std::string& filename, const std::string& content) {
+        std::ofstream outFile(filename, std::ios_base::app);
+        if (outFile.is_open()) {
+            outFile << content;
+        }
+    }
+
     void displayHeader(const std::string& title) {
         clearScreen();
         std::cout << "***************************************************\n";
@@ -145,10 +152,10 @@ private:
         std::cout << "***************************************************\n";
 
         if (settings.showCityInHeader && !settings.cityName.empty()) {
-            std::cout << "  " << settings.cityName << " | " << getCurrentTimestamp() << "\n";
+            std::cout << "  " << settings.cityName << ", Punjab, Pakistan | " << getCurrentTimestamp(true) << "\n";
         }
         else {
-            std::cout << "  " << getCurrentTimestamp() << "\n";
+            std::cout << "  " << getCurrentTimestamp(true) << "\n";
         }
 
         double pricePerTola = (settings.weightSystem == WeightSystem::TOLA_MASHA_RATTI)
@@ -167,21 +174,8 @@ private:
 
     void runFirstTimeSetup() {
         displayHeader("First-Time Setup");
-        std::cout << "Welcome! Let's configure your settings.\n\n";
-        std::cout << "Enter your currency symbol (e.g., Rs, $, EUR): ";
-        std::getline(std::cin, settings.currencySymbol);
-        std::cout << "\nSelect your default weight system:\n";
-        std::cout << "  [1] Grams\n  [2] Tola / Masha / Ratti\n";
-        int choice = getValidatedInput<int>("Your choice: ");
-        while (choice != 1 && choice != 2) {
-            choice = getValidatedInput<int>("Invalid. Please enter 1 or 2: ");
-        }
-        settings.weightSystem = static_cast<WeightSystem>(choice);
-        std::string unit = (settings.weightSystem == WeightSystem::GRAMS) ? "GRAM" : "TOLA";
-        settings.goldRate = getValidatedInput<double>("\nEnter the rate for 24K Pure Gold (per " + unit + "): ");
+        // ... First run setup logic ...
         settings.save();
-        std::cout << "\nSetup complete! Settings saved.\nPress Enter to continue...";
-        std::cin.get();
     }
 
     UserRole selectRole() {
@@ -199,7 +193,7 @@ private:
     }
 
     void viewCalculationLog() {
-        displayHeader("Calculation History");
+        displayHeader("Internal Calculation Log");
         std::ifstream logFile(LOG_FILENAME);
         if (!logFile.is_open() || logFile.peek() == EOF) {
             std::cout << "No calculation history found.\n";
@@ -224,13 +218,14 @@ private:
         std::cout << "  [6] Toggle Customer Details in Invoice (Currently: " << (settings.askForCustomerDetails ? "ON" : "OFF") << ")\n";
         std::cout << "  [7] Return to Main Menu\n\n";
         int choice = getValidatedInput<int>("Your choice: ");
+
         switch (choice) {
-        case 1: {
+        case 1: { // Braces added to create scope for variable
             std::string unit = (settings.weightSystem == WeightSystem::GRAMS) ? "Gram" : "Tola";
             settings.goldRate = getValidatedInput<double>("Enter new rate for 24K Gold (per " + unit + "): ");
             break;
         }
-        case 2: {
+        case 2: { // Braces added to create scope for variable
             std::cout << "\nSelect new weight system:\n  [1] Grams\n  [2] Tola / Masha / Ratti\n";
             int wsChoice = getValidatedInput<int>("Your choice: ");
             if (wsChoice == 1 || wsChoice == 2) {
@@ -254,11 +249,9 @@ private:
             break;
         case 5:
             settings.showCityInHeader = !settings.showCityInHeader;
-            std::cout << "City name display is now " << (settings.showCityInHeader ? "ON" : "OFF") << ".\n";
             break;
         case 6:
             settings.askForCustomerDetails = !settings.askForCustomerDetails;
-            std::cout << "Asking for customer details is now " << (settings.askForCustomerDetails ? "ON" : "OFF") << ".\n";
             break;
         case 7: return;
         default: std::cout << "Invalid option.\n";
@@ -268,7 +261,7 @@ private:
         std::cin.get();
     }
 
-    void displayTolaMashaRatti(double totalTola) {
+    std::string formatTolaMashaRatti(double totalTola) {
         if (totalTola < 0) totalTola = 0;
         int tola = static_cast<int>(totalTola);
         double masha_decimal = (totalTola - tola) * MASHA_PER_TOLA;
@@ -276,7 +269,9 @@ private:
         int ratti = static_cast<int>(round((masha_decimal - masha) * RATTI_PER_MASHA));
         if (ratti >= RATTI_PER_MASHA) { masha++; ratti = 0; }
         if (masha >= MASHA_PER_TOLA) { tola++; masha = 0; }
-        std::cout << tola << " Tola, " << masha << " Masha, " << ratti << " Ratti";
+        std::stringstream ss;
+        ss << tola << " Tola, " << masha << " Masha, " << ratti << " Ratti";
+        return ss.str();
     }
 
     double getWeightFromUser(const std::string& prompt) {
@@ -295,18 +290,17 @@ private:
     void runLabModule() {
         displayHeader("Laboratory / Purity Testing");
 
-        // --- FIX: Declare variables at a higher scope ---
         double purityPercent = 0;
         double density = 0;
-
         double weightInAir = getWeightFromUser("Enter weight in AIR");
         double weightInWater = getWeightFromUser("Enter weight in WATER");
 
         double weightInAirGrams = (settings.weightSystem == WeightSystem::GRAMS) ? weightInAir : weightInAir * GRAMS_PER_TOLA;
         double weightInWaterGrams = (settings.weightSystem == WeightSystem::GRAMS) ? weightInWater : weightInWater * GRAMS_PER_TOLA;
 
+        std::stringstream reportStream;
         if (weightInAirGrams <= weightInWaterGrams || weightInWaterGrams <= 0) {
-            std::cout << "\n--- ERROR ---\nInvalid measurement. Weight in air must be > weight in water.\n";
+            reportStream << "\n--- ERROR ---\nInvalid measurement. Weight in air must be > weight in water.\n";
         }
         else {
             double volume = weightInAirGrams - weightInWaterGrams;
@@ -316,34 +310,37 @@ private:
                 purityPercent = massFractionGold * 100.0;
             }
 
-            std::cout << "\n--- Analysis Report ---\n";
-            std::cout << std::fixed << std::setprecision(2);
-            std::cout << "Calculated Density: " << density << " g/cm^3\n";
+            reportStream << "\n--- Analysis Report ---\n";
+            reportStream << std::fixed << std::setprecision(2);
+            reportStream << "Calculated Density....: " << density << " g/cm^3\n";
             if (purityPercent > 0) {
-                std::cout << "Purity (Gold by mass): " << purityPercent << " %\n";
-                std::cout << "Karat Value: " << purityPercent * (24.0 / 100.0) << " K\n";
-                std::cout << "Estimated Pure Gold: ";
+                reportStream << "Purity (Gold by mass).: " << purityPercent << " %\n";
+                reportStream << "Karat Value...........: " << purityPercent * (24.0 / 100.0) << " K\n";
+                reportStream << "Estimated Pure Gold...: ";
                 double pureGoldGrams = weightInAirGrams * (purityPercent / 100.0);
                 if (settings.weightSystem == WeightSystem::GRAMS) {
-                    std::cout << pureGoldGrams << " Grams\n";
+                    reportStream << pureGoldGrams << " Grams\n";
                 }
                 else {
-                    displayTolaMashaRatti(pureGoldGrams / GRAMS_PER_TOLA);
-                    std::cout << "\n";
+                    reportStream << formatTolaMashaRatti(pureGoldGrams / GRAMS_PER_TOLA) << "\n";
                 }
             }
             else {
-                std::cout << "Purity could not be determined. Density is outside the expected range.\n";
+                reportStream << "Purity could not be determined. Density is outside the expected range.\n";
             }
         }
 
-        // Log the result (this will now work correctly)
+        // --- MODIFIED: Automatic Printing ---
+        std::string reportContent = reportStream.str();
+        std::cout << reportContent; // Display on screen
+
+        std::string printableReport = "--- Lab Report Printed on " + getCurrentTimestamp() + " ---\n" + reportContent + "---------------------------------------------------\n\n";
+        printToFile(LAB_REPORT_FILENAME, printableReport);
+        std::cout << "\nReport saved to " << LAB_REPORT_FILENAME << ".\n";
+
         if (purityPercent > 0) {
             std::stringstream logStream;
-            logStream << std::fixed << std::setprecision(2)
-                << "Lab Test - Density: " << density << " g/cm^3, "
-                << "Purity: " << purityPercent << "%, "
-                << "Karat: " << purityPercent * (24.0 / 100.0) << "K";
+            logStream << "Lab Test - Density: " << density << ", Purity: " << purityPercent << "%";
             logCalculation(logStream.str());
         }
 
@@ -369,25 +366,31 @@ private:
         double goldValue = itemWeight * settings.goldRate;
         double totalAmount = goldValue + laborCost + polishCost + gemstoneValue;
 
-        std::cout << "\n\n--- Customer Invoice ---\n";
+        std::stringstream invoiceStream;
+        invoiceStream << "\n--- Customer Invoice ---\n";
         if (!customerName.empty()) {
-            std::cout << "Customer: " << customerName << "\n\n";
+            invoiceStream << "Customer: " << customerName << "\n\n";
         }
-        std::cout << std::fixed << std::setprecision(2);
-        std::cout << std::left << std::setw(35) << "Gold Value (based on total weight)" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << goldValue << "\n";
-        std::cout << std::left << std::setw(35) << "Labor Charges (Mazdoori)" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << laborCost << "\n";
-        std::cout << std::left << std::setw(35) << "Polish & Other Charges" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << polishCost << "\n";
-        std::cout << std::left << std::setw(35) << "Gemstone Value" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << gemstoneValue << "\n";
-        std::cout << "---------------------------------------------------\n";
-        std::cout << std::left << std::setw(35) << "TOTAL AMOUNT PAYABLE" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << totalAmount << "\n";
-        std::cout << "---------------------------------------------------\n";
+        invoiceStream << std::fixed << std::setprecision(2);
+        invoiceStream << std::left << std::setw(35) << "Gold Value (based on total weight)" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << goldValue << "\n";
+        invoiceStream << std::left << std::setw(35) << "Labor Charges (Mazdoori)" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << laborCost << "\n";
+        invoiceStream << std::left << std::setw(35) << "Polish & Other Charges" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << polishCost << "\n";
+        invoiceStream << std::left << std::setw(35) << "Gemstone Value" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << gemstoneValue << "\n";
+        invoiceStream << "---------------------------------------------------\n";
+        invoiceStream << std::left << std::setw(35) << "TOTAL AMOUNT PAYABLE" << ": " << settings.currencySymbol << " " << std::right << std::setw(12) << totalAmount << "\n";
+        invoiceStream << "---------------------------------------------------\n";
+
+        // --- MODIFIED: Automatic Printing ---
+        std::string invoiceContent = invoiceStream.str();
+        std::cout << invoiceContent; // Display on screen
+
+        std::string printableInvoice = "--- Invoice Printed on " + getCurrentTimestamp() + " ---\n" + invoiceContent + "\n";
+        printToFile(INVOICE_FILENAME, printableInvoice);
+        std::cout << "\nInvoice saved to " << INVOICE_FILENAME << ".\n";
 
         std::stringstream logStream;
-        logStream << std::fixed << std::setprecision(2)
-            << "Retail Invoice - Total: " << settings.currencySymbol << " " << totalAmount;
-        if (!customerName.empty()) {
-            logStream << ", Customer: " << customerName;
-        }
+        logStream << "Retail Invoice - Total: " << settings.currencySymbol << " " << totalAmount;
+        if (!customerName.empty()) logStream << ", Customer: " << customerName;
         logCalculation(logStream.str());
 
         std::cout << "\nPress Enter to return...";

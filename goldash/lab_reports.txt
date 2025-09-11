@@ -1,0 +1,18 @@
+--- Lab Report Printed on 2025-09-12 02:54:31 ---
+
+--- Analysis Report ---
+Calculated Density....: 13.89 g/cm^3
+Purity (Gold by mass).: 66.18 %
+Karat Value...........: 15.88 K
+Estimated Pure Gold...: 8.27 Grams
+---------------------------------------------------
+
+--- Lab Report Printed on 2025-09-12 02:58:38 ---
+
+--- Analysis Report ---
+Calculated Density....: 17.86 g/cm^3
+Purity (Gold by mass).: 92.92 %
+Karat Value...........: 22.30 K
+Estimated Pure Gold...: 11.61 Grams
+---------------------------------------------------
+

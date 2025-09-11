@@ -18,3 +18,6 @@ Resulting total mass: 1.33g of 18.00K alloy.
 
 
 [2025-09-12 02:49:41] Lab Test - Density: 11.20 g/cm^3, Purity: 37.31%, Karat: 8.95K
+[2025-09-12 02:54:31] Lab Test - Density: 13.8889, Purity: 66.1803%
+[2025-09-12 02:55:06] Retail Invoice - Total: Rs 480066, Customer: Daniel
+[2025-09-12 02:58:38] Lab Test - Density: 17.8571, Purity: 92.915%
